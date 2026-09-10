@@ -147,8 +147,8 @@ export const GradingTerminal: React.FC<GradingTerminalProps> = ({
     }
   }, [requestedLotId, onClearRequestedLotId]);
 
-  // Mandi Audio / PA Announcement in Hindi, Marathi, or English
-  const playMandiAudio = (lang: 'hi' | 'mr' | 'en' = 'hi') => {
+  // Mandi Audio / PA Announcement in Hindi, Marathi, Telugu, or English
+  const playMandiAudio = (lang: 'hi' | 'mr' | 'te' | 'en' = 'hi') => {
     if (!('speechSynthesis' in window) || !assessmentResult) return;
     window.speechSynthesis.cancel();
 
@@ -163,15 +163,37 @@ export const GradingTerminal: React.FC<GradingTerminalProps> = ({
       text = `लॉट क्रमांक ${assessmentResult.lotId}। किसान: ${farmerName}। एगमार्क प्रमाणित ग्रेड: ${assessmentResult.overallGrade}। गुणवत्ता सूचकांक: ${assessmentResult.qualityScore} प्रतिशत। देय एमएसपी भाव: ${assessmentResult.pricing.netPayableRate} रुपये प्रति क्विंटल। ${statusHindi}`;
     } else if (lang === 'mr') {
       text = `लॉट क्रमांक ${assessmentResult.lotId}। शेतकरी: ${farmerName}। गुणवत्ता प्रत: ${assessmentResult.overallGrade}। गुणवत्ता गुण: ${assessmentResult.qualityScore} टक्के। निव्वळ देय भाव: ${assessmentResult.pricing.netPayableRate} रुपये प्रति क्विंटल. नाफेड खरेदीसाठी तपासणी पूर्ण झाली.`;
+    } else if (lang === 'te') {
+      const statusTelugu =
+        assessmentResult.faqStatus === 'FAQ Compliant'
+          ? 'కొనుగోలుకు పూర్తిగా ఆమోదించబడింది.'
+          : assessmentResult.faqStatus === 'Marginal FAQ'
+          ? 'క్లీనింగ్ మినహాయింపుతో ఆమోదించబడింది.'
+          : 'ప్రమాణాల కంటే తక్కువ, తిరస్కరించబడింది.';
+      text = `లాట్ నంబర్ ${assessmentResult.lotId}. రైతు: ${farmerName}. గ్రేడ్: ${assessmentResult.overallGrade}. నాణ్యత స్కోరు: ${assessmentResult.qualityScore} శాతం. చెల్లించవలసిన ధర: క్వింటాల్‌కు ${assessmentResult.pricing.netPayableRate} రూపాయలు. ${statusTelugu}`;
     } else {
       text = `Consignment Lot ID ${assessmentResult.lotId}. Farmer: ${farmerName}. AGMARK Certified Grade: ${assessmentResult.overallGrade}. Quality score: ${assessmentResult.qualityScore} percent. Net payable MSP rate: ${assessmentResult.pricing.netPayableRate} rupees per quintal. Status: ${assessmentResult.faqStatus}.`;
     }
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.92;
-    if (lang === 'hi') utterance.lang = 'hi-IN';
-    else if (lang === 'mr') utterance.lang = 'mr-IN';
-    else utterance.lang = 'en-IN';
+    
+    // Explicitly try to find matching voices to handle OS limitations
+    const voices = window.speechSynthesis.getVoices();
+    
+    if (lang === 'hi') {
+      utterance.lang = 'hi-IN';
+    } else if (lang === 'mr') {
+      utterance.lang = 'mr-IN';
+      // Fallback: If no Marathi voice is installed, use Hindi (since both use Devanagari script)
+      if (voices.length > 0 && !voices.some(v => v.lang.startsWith('mr'))) {
+        utterance.lang = 'hi-IN';
+      }
+    } else if (lang === 'te') {
+      utterance.lang = 'te-IN';
+    } else {
+      utterance.lang = 'en-IN';
+    }
 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
@@ -342,25 +364,16 @@ export const GradingTerminal: React.FC<GradingTerminalProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error(`Grading server returned status ${response.status}`);
+        const errBody = await response.text();
+        throw new Error(`Grading server error (${response.status}): ${errBody}`);
       }
 
       const data: OnionAssessmentResult = await response.json();
       setAssessmentResult(data);
     } catch (err: any) {
-      console.warn('Network call failed, applying client heuristic:', err);
-      // Fallback in case of server offline
-      const { generateDeterministicGrading } = await import('../services/onionGradingEngine');
-      const fallbackResult = generateDeterministicGrading({
-        lotId: payload.metadata.lotId,
-        procurementCenter: payload.metadata.procurementCenter,
-        farmerName: payload.metadata.farmerName,
-        kisanId: payload.metadata.kisanId,
-        vehicleNumber: payload.metadata.vehicleNumber,
-        lotWeightQuintals: payload.metadata.lotWeightQuintals,
-        sampleType: payload.sampleType,
-      });
-      setAssessmentResult(fallbackResult);
+      console.error('Network call or API failed:', err);
+      setErrorMsg(err.message || 'Failed to connect to AI Grading Engine.');
+      setAssessmentResult(null);
     } finally {
       setIsGrading(false);
     }
@@ -1122,6 +1135,16 @@ export const GradingTerminal: React.FC<GradingTerminalProps> = ({
             </div>
           )}
 
+          {errorMsg && (
+            <div className="mt-6 bg-red-100 border-l-4 border-red-600 p-4 rounded-md shadow-sm">
+              <h4 className="text-red-800 font-bold flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                AI Grading Failed
+              </h4>
+              <p className="text-red-700 text-sm mt-1">{errorMsg}</p>
+            </div>
+          )}
+
           {/* Proceed to Step 3 */}
           <div className="mt-6 flex justify-end">
             <button
@@ -1146,6 +1169,27 @@ export const GradingTerminal: React.FC<GradingTerminalProps> = ({
               <button onClick={() => setCurrentStep(2)} className="text-sm font-semibold text-slate-500 hover:text-slate-800">Back</button>
               <button onClick={() => setCurrentStep(4)} className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-sm flex items-center gap-2 transition-colors">Pricing & Settlement <ChevronRight className="w-4 h-4"/></button>
             </div>
+          </div>
+          
+          <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-lg">
+            <button 
+              onClick={() => {
+                const el = document.getElementById('size-grading-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="flex-1 py-2 text-sm font-bold bg-white text-emerald-700 shadow-xs rounded-md border border-slate-200"
+            >
+              Check Size Grading
+            </button>
+            <button 
+              onClick={() => {
+                const el = document.getElementById('health-status-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="flex-1 py-2 text-sm font-bold bg-white text-rose-700 shadow-xs rounded-md border border-slate-200"
+            >
+              Check Health Status (Spoiled/Good)
+            </button>
           </div>
           
           {assessmentResult ? (
@@ -1271,6 +1315,15 @@ export const GradingTerminal: React.FC<GradingTerminalProps> = ({
                       <span>मराठी</span>
                     </button>
                     <button
+                      id="btn-voice-telugu"
+                      onClick={() => playMandiAudio('te')}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-md text-xs font-medium border border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Play Telugu Announcement"
+                    >
+                      <Play className="w-3 h-3 text-amber-400" />
+                      <span>తెలుగు</span>
+                    </button>
+                    <button
                       id="btn-voice-english"
                       onClick={() => playMandiAudio('en')}
                       className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-md text-xs font-medium border border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
@@ -1349,7 +1402,7 @@ export const GradingTerminal: React.FC<GradingTerminalProps> = ({
               )}
 
               {/* Size Distribution Breakdown */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+              <div id="size-grading-section" className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs scroll-mt-20">
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 flex items-center justify-between">
                   <span>Equatorial Size Distribution</span>
                   <span className="text-[10px] text-slate-400 font-normal">AGMARK Size Classes</span>
@@ -1424,7 +1477,7 @@ export const GradingTerminal: React.FC<GradingTerminalProps> = ({
               </div>
 
               {/* Defect Tolerance Audit Table */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+              <div id="health-status-section" className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs scroll-mt-20">
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center justify-between">
                   <span>Defect Density vs AGMARK Ceilings</span>
                   <span className="text-[10px] text-slate-400 font-normal">Statutory Tolerance</span>

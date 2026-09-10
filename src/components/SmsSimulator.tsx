@@ -78,6 +78,25 @@ export const SmsSimulator: React.FC<SmsSimulatorProps> = ({ result, farmerName, 
             </span>
           </div>
 
+          {/* Telugu Message */}
+          <div className="bg-white rounded-lg rounded-tl-none p-3 shadow-sm max-w-[90%] relative text-slate-800 text-sm leading-relaxed">
+            <p>
+              నమస్కారం <b>{farmerName}</b> గారు, <br/>
+              మీ <b>{result.lotId}</b> లాట్ తనిఖీ పూర్తయింది.
+            </p>
+            <p className="mt-2">
+              <b>గ్రేడ్:</b> {result.overallGrade}<br/>
+              <b>బరువు:</b> {result.lotWeightQuintals} క్వింటాల్<br/>
+              <b>ధర:</b> ₹{result.pricing.netPayableRate}/క్వింటాల్
+            </p>
+            <p className="mt-2 text-emerald-700 font-bold">
+              మొత్తం మొత్తం: ₹{result.pricing.estimatedTotalPayout.toLocaleString()}
+            </p>
+            <span className="text-[9px] text-slate-400 absolute bottom-1.5 right-2 flex items-center gap-1">
+              Just now <Check className="w-3 h-3 text-blue-500" />
+            </span>
+          </div>
+
         </div>
 
         {/* Input Bar */}

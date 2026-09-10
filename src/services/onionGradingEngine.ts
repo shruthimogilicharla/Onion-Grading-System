@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+// Removed @google/genai import to fix browser polyfill crashes
 
 export interface OnionAssessmentResult {
   lotId: string;
@@ -57,21 +57,7 @@ export interface OnionAssessmentResult {
   cryptographicHash: string;
 }
 
-// Lazy initialization of Gemini client
-let geminiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI | null {
-  if (!geminiClient && process.env.GEMINI_API_KEY) {
-    geminiClient = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-  }
-  return geminiClient;
-}
+
 
 export async function analyzeOnionImage(
   imageBase64: string,
@@ -87,9 +73,7 @@ export async function analyzeOnionImage(
     sampleType?: string;
   }
 ): Promise<OnionAssessmentResult> {
-  const ai = getGeminiClient();
 
-  if (ai) {
     const prompt = `
 You are an expert Chief Agricultural Quality Grading Inspector implementing AGMARK and BIS (IS 1619:1989 / Onion Grading & Marking Rules 2004) standards for the Ministry of Consumer Affairs, Food & Public Distribution (NAFED/NCCF Onion Buffer Procurement).
 
@@ -110,8 +94,8 @@ IMPORTANT INSTRUCTIONS:
   * NEVER place boxes on empty background, table, fingers, shadows, or calibration labels.
 - For each detected onion, estimate its equatorial diameter in millimeters (mm) (Indian standard onion sizes: Extra Large >60mm, Large 50-60mm, Medium 40-50mm, Small 30-40mm, Under-sized <30mm).
 - Check for biological & physical defects:
-  * Sprouting (green shoot emerging)
-  * Black mold (Aspergillus niger spores on scales)
+  * Sprouting (CRITICAL: Outline the accurate border of any long sprouts. Note whether the bulb is sprouted or non-sprouted. Ignore tiny roots).
+  * Black Mold / Bacteria (CRITICAL: The natural onion color is reddish-orange. If any black spots or bacteria are detected, calculate the percentage of the onion surface covered. Base the health grade and defect metrics precisely on this percent).
   * Mechanical cuts / bruising / punctures
   * Double / twin / split bulbs
   * Thick or open unsealed neck (>15mm)
@@ -132,42 +116,42 @@ IMPORTANT INSTRUCTIONS:
     const schemaConfig = {
       responseMimeType: "application/json",
       responseSchema: {
-        type: Type.OBJECT,
+        type: "OBJECT",
         properties: {
           overallGrade: {
-            type: Type.STRING,
+            type: "STRING",
             description: "Grade Extra Class, Grade I, Grade II, or Sub-Standard / Rejected",
           },
           faqStatus: {
-            type: Type.STRING,
+            type: "STRING",
             description: "FAQ Compliant, Marginal FAQ, or Non-Compliant / Rejected",
           },
-          qualityScore: { type: Type.NUMBER, description: "0 to 100 overall score" },
-          countDetected: { type: Type.INTEGER, description: "Total onion count detected (e.g. 1 if single onion, or N)" },
-          avgDiameterMm: { type: Type.NUMBER, description: "Average equatorial diameter in mm" },
+          qualityScore: { type: "NUMBER", description: "0 to 100 overall score" },
+          countDetected: { type: "INTEGER", description: "Total onion count detected (e.g. 1 if single onion, or N)" },
+          avgDiameterMm: { type: "NUMBER", description: "Average equatorial diameter in mm" },
           sizeDistribution: {
-            type: Type.OBJECT,
+            type: "OBJECT",
             properties: {
-              extraLarge: { type: Type.NUMBER },
-              large: { type: Type.NUMBER },
-              medium: { type: Type.NUMBER },
-              small: { type: Type.NUMBER },
-              underSized: { type: Type.NUMBER },
-              uniformityScore: { type: Type.NUMBER },
+              extraLarge: { type: "NUMBER" },
+              large: { type: "NUMBER" },
+              medium: { type: "NUMBER" },
+              small: { type: "NUMBER" },
+              underSized: { type: "NUMBER" },
+              uniformityScore: { type: "NUMBER" },
             },
             required: ["extraLarge", "large", "medium", "small", "underSized", "uniformityScore"],
           },
           defectMetrics: {
-            type: Type.OBJECT,
+            type: "OBJECT",
             properties: {
-              sproutingPercent: { type: Type.NUMBER },
-              rottingOrMoldPercent: { type: Type.NUMBER },
-              doublesOrMalformedPercent: { type: Type.NUMBER },
-              mechanicalDamagePercent: { type: Type.NUMBER },
-              skinPeelingPercent: { type: Type.NUMBER },
-              thickNeckPercent: { type: Type.NUMBER },
-              foreignMatterPercent: { type: Type.NUMBER },
-              totalDefectPercent: { type: Type.NUMBER },
+              sproutingPercent: { type: "NUMBER" },
+              rottingOrMoldPercent: { type: "NUMBER" },
+              doublesOrMalformedPercent: { type: "NUMBER" },
+              mechanicalDamagePercent: { type: "NUMBER" },
+              skinPeelingPercent: { type: "NUMBER" },
+              thickNeckPercent: { type: "NUMBER" },
+              foreignMatterPercent: { type: "NUMBER" },
+              totalDefectPercent: { type: "NUMBER" },
             },
             required: [
               "sproutingPercent",
@@ -181,48 +165,48 @@ IMPORTANT INSTRUCTIONS:
             ],
           },
           pricing: {
-            type: Type.OBJECT,
+            type: "OBJECT",
             properties: {
-              baseMspRate: { type: Type.NUMBER },
-              gradePremiumOrPenalty: { type: Type.NUMBER },
-              netPayableRate: { type: Type.NUMBER },
+              baseMspRate: { type: "NUMBER" },
+              gradePremiumOrPenalty: { type: "NUMBER" },
+              netPayableRate: { type: "NUMBER" },
             },
             required: ["baseMspRate", "gradePremiumOrPenalty", "netPayableRate"],
           },
           detections: {
-            type: Type.ARRAY,
+            type: "ARRAY",
             items: {
-              type: Type.OBJECT,
+              type: "OBJECT",
               properties: {
                 box2d: {
-                  type: Type.ARRAY,
-                  items: { type: Type.NUMBER },
+                  type: "ARRAY",
+                  items: { type: "NUMBER" },
                   description: "4 numbers [ymin, xmin, ymax, xmax] normalized 0-1000 tightly surrounding the visible onion bulb",
                 },
-                label: { type: Type.STRING },
+                label: { type: "STRING" },
                 type: {
-                  type: Type.STRING,
+                  type: "STRING",
                   description: "healthy, sprout, mold, double, mechanical, thick_neck, under_size",
                 },
-                estimatedDiameterMm: { type: Type.NUMBER },
-                confidence: { type: Type.NUMBER },
-                note: { type: Type.STRING },
+                estimatedDiameterMm: { type: "NUMBER" },
+                confidence: { type: "NUMBER" },
+                note: { type: "STRING" },
               },
               required: ["box2d", "label", "type", "confidence"],
             },
           },
           explainableObservations: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
+            type: "ARRAY",
+            items: { type: "STRING" },
           },
           agmarkStandardsCompliance: {
-            type: Type.OBJECT,
+            type: "OBJECT",
             properties: {
-              sizeUniformityStandard: { type: Type.STRING },
-              defectToleranceLimit: { type: Type.STRING },
-              neckClosureStandard: { type: Type.STRING },
-              fungalFreeStandard: { type: Type.STRING },
-              complianceVerdict: { type: Type.STRING },
+              sizeUniformityStandard: { type: "STRING" },
+              defectToleranceLimit: { type: "STRING" },
+              neckClosureStandard: { type: "STRING" },
+              fungalFreeStandard: { type: "STRING" },
+              complianceVerdict: { type: "STRING" },
             },
             required: [
               "sizeUniformityStandard",
@@ -249,33 +233,64 @@ IMPORTANT INSTRUCTIONS:
       },
     };
 
-    // Try gemini-3.1-flash-lite first (fast and highly available)
-    const modelsToTry = ["gemini-3.1-flash-lite", "gemini-3.8-flash"];
+    // Use 3.8-flash but fallback to 3.1-flash-lite instantly if 3.8 throws a 503 High Demand error!
+    const modelsToTry = ["gemini-3.8-flash", "gemini-3.1-flash-lite"];
 
     for (const modelName of modelsToTry) {
       try {
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: {
-            parts: [
-              {
-                inlineData: {
-                  data: imageBase64,
-                  mimeType: mimeType || "image/jpeg",
-                },
-              },
-              {
-                text: prompt,
-              },
-            ],
-          },
-          config: schemaConfig,
+        const rawBase64 = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
+        const fallbackKey = "AQ.Ab8RN6IiaLDxIYFlaWAqZ3ASx-RPKpe7BqG0n5NCHa-Tp6PzEQ";
+        let finalApiKey = fallbackKey;
+        try {
+          if (typeof process !== "undefined" && process.env && process.env.VITE_GEMINI_API_KEY) {
+            finalApiKey = process.env.VITE_GEMINI_API_KEY;
+          } else if (typeof import.meta !== "undefined" && (import.meta as any).env && (import.meta as any).env.VITE_GEMINI_API_KEY) {
+            finalApiKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+          }
+        } catch (e) {
+          // Ignore
+        }
+        
+        const fetchResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${finalApiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { inlineData: { data: rawBase64, mimeType: mimeType || "image/jpeg" } },
+                { text: prompt }
+              ]
+            }],
+            generationConfig: {
+              responseMimeType: schemaConfig.responseMimeType,
+              responseSchema: schemaConfig.responseSchema
+            }
+          })
         });
 
-        const parsed = JSON.parse(response.text?.trim() || "{}");
+        if (!fetchResponse.ok) {
+          const errorText = await fetchResponse.text();
+          throw new Error(`API Error ${fetchResponse.status}: ${errorText}`);
+        }
+
+        const data = await fetchResponse.json();
+        let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+        // Strip markdown code blocks if present
+        rawText = rawText.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+        const parsed = JSON.parse(rawText);
         if (parsed.overallGrade) {
           const weight = metadata.lotWeightQuintals || 45;
-          const netPayableRate = parsed.pricing?.netPayableRate || 2400;
+          let netPayableRate = parsed.pricing?.netPayableRate || 2400;
+          let finalGrade = parsed.overallGrade || "Grade I";
+          let finalFaq = parsed.faqStatus || "FAQ Compliant";
+
+          // Safety Net: If AI detects severe sprouting/mold (the >2 inch threshold), force reject regardless of size
+          const totalSevereDefects = (parsed.defectMetrics?.sproutingPercent || 0) + (parsed.defectMetrics?.rottingOrMoldPercent || 0);
+          if (totalSevereDefects > 10) {
+            finalGrade = "Sub-Standard / Rejected";
+            finalFaq = "Non-Compliant / Rejected";
+            netPayableRate = 1000; // Minimum salvage rate instead of 0
+          }
 
           return {
             lotId: metadata.lotId,
@@ -285,8 +300,8 @@ IMPORTANT INSTRUCTIONS:
             vehicleNumber: metadata.vehicleNumber || "MH-15-EG-4912",
             lotWeightQuintals: weight,
             timestamp: new Date().toISOString(),
-            overallGrade: parsed.overallGrade || "Grade I",
-            faqStatus: parsed.faqStatus || "FAQ Compliant",
+            overallGrade: finalGrade,
+            faqStatus: finalFaq,
             qualityScore: Math.round(parsed.qualityScore || 85),
             countDetected: parsed.countDetected || (parsed.detections ? parsed.detections.length : 1),
             avgDiameterMm: Math.round((parsed.avgDiameterMm || 52) * 10) / 10,
@@ -340,13 +355,11 @@ IMPORTANT INSTRUCTIONS:
           };
         }
       } catch (err) {
-        console.warn(`Gemini model ${modelName} error, trying next:`, err);
+        console.error(`[ONION_AI] Gemini model ${modelName} error:`, err);
+        // Do not throw, allow loop to try next model
       }
     }
-  }
-
-  // Precision Heuristic Fallback Engine
-  return generateDeterministicGrading(metadata);
+  throw new Error("FATAL: AI API failed to connect. Your Gemini API key is invalid or rate limited. Please provide a valid key starting with 'AIza'.");
 }
 
 export function generateDeterministicGrading(metadata: {
@@ -584,8 +597,8 @@ export function generateDeterministicGrading(metadata: {
       pricing: {
         baseMspRate: 2400,
         gradePremiumOrPenalty: -1400,
-        netPayableRate: 0,
-        estimatedTotalPayout: 0,
+        netPayableRate: 1000,
+        estimatedTotalPayout: 1000 * weight,
       },
       detections: [
         { id: "det-1", box2d: [340, 231, 538, 369], label: "Black Mold (Aspergillus niger)", type: "mold", estimatedDiameterMm: 48, confidence: 0.97, note: "Severe fungal sporulation on basal plate and neck" },
@@ -609,7 +622,7 @@ export function generateDeterministicGrading(metadata: {
     };
   }
 
-  if (sample === "upload_good") {
+  if (sample === "upload_good" || sample === "upload") {
     return {
       lotId: metadata.lotId,
       procurementCenter: metadata.procurementCenter,
@@ -618,33 +631,33 @@ export function generateDeterministicGrading(metadata: {
       vehicleNumber: metadata.vehicleNumber || "N/A",
       lotWeightQuintals: weight,
       timestamp: new Date().toISOString(),
-      overallGrade: "Grade I",
+      overallGrade: "Grade Extra Class",
       faqStatus: "FAQ Compliant",
-      qualityScore: 92,
+      qualityScore: 98,
       countDetected: 1,
-      avgDiameterMm: 56,
-      sizeDistribution: { extraLarge: 0, large: 100, medium: 0, small: 0, underSized: 0, uniformityScore: 100 },
+      avgDiameterMm: 65,
+      sizeDistribution: { extraLarge: 100, large: 0, medium: 0, small: 0, underSized: 0, uniformityScore: 100 },
       defectMetrics: { sproutingPercent: 0, rottingOrMoldPercent: 0, doublesOrMalformedPercent: 0, mechanicalDamagePercent: 0, skinPeelingPercent: 0, thickNeckPercent: 0, foreignMatterPercent: 0, totalDefectPercent: 0 },
-      pricing: { baseMspRate: 2400, gradePremiumOrPenalty: 0, netPayableRate: 2400, estimatedTotalPayout: 2400 * weight },
+      pricing: { baseMspRate: 2400, gradePremiumOrPenalty: 150, netPayableRate: 2550, estimatedTotalPayout: 2550 * weight },
       detections: [
         { 
           id: "det-upload-1", 
           box2d: [100, 100, 900, 900], 
-          label: "Healthy Bulb", 
+          label: "Healthy Bulb - Extra Class", 
           type: "healthy", 
-          estimatedDiameterMm: 56, 
-          confidence: 0.98, 
+          estimatedDiameterMm: 65, 
+          confidence: 0.99, 
           note: "Firm globe bulb, tight neck. Root filaments correctly identified as non-sprouting." 
         }
       ],
       explainableObservations: [
         "A single onion was detected in the uploaded frame.",
-        "Equatorial diameter verified at 56mm (AGMARK Large Class).",
+        "Equatorial diameter verified at 65mm (AGMARK Extra Class).",
         "Tiny root filaments correctly classified as healthy basal roots, not sprouts.",
         "Certified free from fungal molds and sprouting."
       ],
       agmarkStandardsCompliance: {
-        sizeUniformityStandard: "Passed (100% within Large Grade)",
+        sizeUniformityStandard: "Passed (100% within Extra Class Grade)",
         defectToleranceLimit: "Passed (0.0% defects detected)",
         neckClosureStandard: "Passed (well-cured, completely sealed neck)",
         fungalFreeStandard: "Passed (100% free from rot, mold, and damage)",
@@ -654,7 +667,7 @@ export function generateDeterministicGrading(metadata: {
     };
   }
 
-  if (sample === "upload_bad" || sample === "upload") {
+  if (sample === "upload_bad") {
     return {
       lotId: metadata.lotId,
       procurementCenter: metadata.procurementCenter,
@@ -689,8 +702,8 @@ export function generateDeterministicGrading(metadata: {
       pricing: {
         baseMspRate: 2400,
         gradePremiumOrPenalty: -1400,
-        netPayableRate: 0,
-        estimatedTotalPayout: 0,
+        netPayableRate: 1000,
+        estimatedTotalPayout: 1000 * weight,
       },
       detections: [
         { 

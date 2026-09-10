@@ -89,6 +89,14 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ result, onCl
                 <span className="text-emerald-600 font-bold px-1 border border-emerald-600">NO (లేదు)</span>
               )}
             </div>
+            <div className="flex justify-between items-center mt-2 pt-2 border-t border-dashed border-slate-300">
+              <span className="font-bold text-slate-700">Health (ఆరోగ్యం):</span>
+              {(result.defectMetrics.rottingOrMoldPercent > 0 || result.defectMetrics.totalDefectPercent > 10) ? (
+                <span className="text-rose-600 font-bold px-1.5 py-0.5 bg-rose-50 border border-rose-600 rounded">SPOILED / BLACK (చెడిపోయిన)</span>
+              ) : (
+                <span className="text-emerald-600 font-bold px-1.5 py-0.5 bg-emerald-50 border border-emerald-600 rounded">GOOD (మంచిది)</span>
+              )}
+            </div>
           </div>
 
           {/* Pricing */}
